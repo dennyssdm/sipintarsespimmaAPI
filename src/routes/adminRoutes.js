@@ -1,7 +1,7 @@
 import express from 'express';
 import * as adminController from '../controllers/adminController.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { authorizeRoles } from '../middleware/rbac.js';
+import { authorizeRoles, authorizeDeleteAction } from '../middleware/rbac.js';
 import { uploadSingleFile } from '../middleware/upload.js';
 
 const router = express.Router();
@@ -39,6 +39,7 @@ router.patch(
 router.delete(
   '/resources/:id',
   authorizeRoles('admin'),
+  authorizeDeleteAction,
   adminController.deleteResource
 );
 
@@ -60,6 +61,7 @@ router.put(
 router.delete(
   '/books/:id',
   authorizeRoles('admin', 'pengelola'),
+  authorizeDeleteAction,
   adminController.deleteBook
 );
 

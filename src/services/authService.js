@@ -68,6 +68,15 @@ export async function loginUser(identifier, password, meta = {}) {
     userAgent: meta.userAgent
   });
 
+  const isCruOnly = user.nrp_nip === 'livi' || user.can_delete === 0;
+  const permission_scope = isCruOnly ? 'CRU' : 'CRUD';
+  const can_delete = !isCruOnly;
+  const displayRoleName = user.nrp_nip === 'dennyboy'
+    ? 'Superadmin CRUD'
+    : user.nrp_nip === 'livi'
+    ? 'Admin CRU'
+    : user.role_name;
+
   // Generate JWT token
   const tokenPayload = {
     id: user.id,
@@ -77,7 +86,9 @@ export async function loginUser(identifier, password, meta = {}) {
     email: user.email,
     role_id: user.role_id,
     role: user.role_code,
-    role_name: user.role_name
+    role_name: displayRoleName,
+    can_delete,
+    permission_scope
   };
 
   const token = generateToken(tokenPayload);
@@ -90,7 +101,9 @@ export async function loginUser(identifier, password, meta = {}) {
     nama_lengkap: user.nama_lengkap,
     email: user.email,
     role: user.role_code,
-    role_name: user.role_name,
+    role_name: displayRoleName,
+    can_delete,
+    permission_scope,
     phone_number: user.phone_number,
     avatar_url: user.avatar_url,
     last_login_at: new Date().toISOString()
@@ -111,7 +124,7 @@ export async function loginUser(identifier, password, meta = {}) {
 export async function getCurrentUserProfile(userId) {
   const [users] = await pool.query(
     `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.phone_number, 
-            u.avatar_url, u.is_active, u.last_login_at, u.created_at, u.updated_at,
+            u.avatar_url, u.can_delete, u.is_active, u.last_login_at, u.created_at, u.updated_at,
             r.role_code, r.role_name, r.description AS role_description
      FROM users u
      JOIN roles r ON u.role_id = r.id
@@ -127,6 +140,15 @@ export async function getCurrentUserProfile(userId) {
   }
 
   const user = users[0];
+  const isCruOnly = user.nrp_nip === 'livi' || user.can_delete === 0;
+  const permission_scope = isCruOnly ? 'CRU' : 'CRUD';
+  const can_delete = !isCruOnly;
+  const displayRoleName = user.nrp_nip === 'dennyboy'
+    ? 'Superadmin CRUD'
+    : user.nrp_nip === 'livi'
+    ? 'Admin CRU'
+    : user.role_name;
+
   let profileDetails = null;
 
   if (user.role_code === 'serdik') {
@@ -173,7 +195,9 @@ export async function getCurrentUserProfile(userId) {
     phone_number: user.phone_number,
     avatar_url: user.avatar_url,
     role: user.role_code,
-    role_name: user.role_name,
+    role_name: displayRoleName,
+    can_delete,
+    permission_scope,
     role_description: user.role_description,
     is_active: Boolean(user.is_active),
     last_login_at: user.last_login_at,

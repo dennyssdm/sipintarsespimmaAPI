@@ -34,5 +34,28 @@ export function authorizeRoles(...roles) {
   };
 }
 
-export default authorizeRoles;
+/**
+ * Middleware to restrict Delete operations (CRUD vs CRU).
+ * Rejects users with CRU permission scope (e.g. 'livi') with 403 FORBIDDEN.
+ */
+export function authorizeDeleteAction(req, res, next) {
+  if (!req.user) {
+    return sendError(res, 'UNAUTHORIZED', 'Autentikasi diperlukan sebelum tindakan hapus.', [], 401);
+  }
 
+  const isCruOnly = req.user.permission_scope === 'CRU' || req.user.can_delete === false || req.user.nrp_nip === 'livi';
+
+  if (isCruOnly) {
+    return sendError(
+      res,
+      'FORBIDDEN',
+      'Akses ditolak: Akun Anda memiliki wewenang Admin CRU (Create, Read, Update). Tindakan Delete (Hapus) hanya dapat dilakukan oleh Superadmin CRUD (dennyboy).',
+      ['Izin akun: CRU Saja (Dilarang Hapus Data)'],
+      403
+    );
+  }
+
+  next();
+}
+
+export default authorizeRoles;

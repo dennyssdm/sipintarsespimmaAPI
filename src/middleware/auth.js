@@ -40,7 +40,7 @@ export async function authenticateToken(req, res, next) {
 
     // Verify user existence and active status in database
     const [rows] = await pool.query(
-      `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.role_id, u.is_active, 
+      `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.role_id, u.can_delete, u.is_active, 
               r.role_code, r.role_name 
        FROM users u 
        JOIN roles r ON u.role_id = r.id 
@@ -64,6 +64,15 @@ export async function authenticateToken(req, res, next) {
       );
     }
 
+    const isCruOnly = user.nrp_nip === 'livi' || user.can_delete === 0;
+    const permission_scope = isCruOnly ? 'CRU' : 'CRUD';
+    const can_delete = !isCruOnly;
+    const role_name = user.nrp_nip === 'dennyboy'
+      ? 'Superadmin CRUD'
+      : user.nrp_nip === 'livi'
+      ? 'Admin CRU'
+      : user.role_name;
+
     req.user = {
       id: user.id,
       uuid: user.uuid,
@@ -72,7 +81,9 @@ export async function authenticateToken(req, res, next) {
       email: user.email,
       role_id: user.role_id,
       role_code: user.role_code,
-      role_name: user.role_name
+      role_name,
+      can_delete,
+      permission_scope
     };
 
     next();
@@ -112,7 +123,7 @@ export async function optionalAuthenticateToken(req, res, next) {
   try {
     const decoded = verifyToken(token);
     const [rows] = await pool.query(
-      `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.role_id, u.is_active, 
+      `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.role_id, u.can_delete, u.is_active, 
               r.role_code, r.role_name 
        FROM users u 
        JOIN roles r ON u.role_id = r.id 
@@ -122,6 +133,15 @@ export async function optionalAuthenticateToken(req, res, next) {
 
     if (rows.length > 0 && rows[0].is_active) {
       const user = rows[0];
+      const isCruOnly = user.nrp_nip === 'livi' || user.can_delete === 0;
+      const permission_scope = isCruOnly ? 'CRU' : 'CRUD';
+      const can_delete = !isCruOnly;
+      const role_name = user.nrp_nip === 'dennyboy'
+        ? 'Superadmin CRUD'
+        : user.nrp_nip === 'livi'
+        ? 'Admin CRU'
+        : user.role_name;
+
       req.user = {
         id: user.id,
         uuid: user.uuid,
@@ -130,7 +150,9 @@ export async function optionalAuthenticateToken(req, res, next) {
         email: user.email,
         role_id: user.role_id,
         role_code: user.role_code,
-        role_name: user.role_name
+        role_name,
+        can_delete,
+        permission_scope
       };
     } else {
       req.user = null;

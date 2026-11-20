@@ -584,6 +584,51 @@ async function runTests() {
     assert(false, '32. Error Handling & Bad JSON Parsing', err.message);
   }
 
+  // 33. Granular RBAC: Superadmin CRUD (dennyboy) vs Admin CRU (livi) with Strict Delete Enforcement
+  try {
+    const dennyRes = await request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: 'dennyboy', password: 'Password123!' })
+    });
+    const liviRes = await request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: 'livi', password: 'Password123!' })
+    });
+
+    const dennyToken = dennyRes.data?.data?.token;
+    const liviToken = liviRes.data?.data?.token;
+
+    // Test livi attempting DELETE
+    const liviDeleteRes = await request('/admin/resources/999999', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${liviToken}` }
+    });
+
+    // Test dennyboy attempting DELETE (should pass RBAC and reach controller -> 404 NOT_FOUND)
+    const dennyDeleteRes = await request('/admin/resources/999999', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${dennyToken}` }
+    });
+
+    assert(
+      dennyRes.status === 200 &&
+      dennyRes.data?.data?.user?.permission_scope === 'CRUD' &&
+      dennyRes.data?.data?.user?.can_delete === true &&
+      liviRes.status === 200 &&
+      liviRes.data?.data?.user?.permission_scope === 'CRU' &&
+      liviRes.data?.data?.user?.can_delete === false &&
+      liviDeleteRes.status === 403 &&
+      liviDeleteRes.data?.error?.code === 'FORBIDDEN' &&
+      dennyDeleteRes.status === 404 &&
+      dennyDeleteRes.data?.error?.code === 'NOT_FOUND',
+      '33. Granular RBAC: Superadmin CRUD (dennyboy) vs Admin CRU (livi) with Strict Delete Enforcement'
+    );
+  } catch (err) {
+    assert(false, '33. Granular RBAC CRUD vs CRU', err.message);
+  }
+
   console.log(`\n------------------------------------------------------------`);
   console.log(`  Test Summary: \x1b[32m${passed} Passed\x1b[0m, \x1b[31m${failed} Failed\x1b[0m out of ${passed + failed} Tests`);
   console.log(`------------------------------------------------------------\n`);
