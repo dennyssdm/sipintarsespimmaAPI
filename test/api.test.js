@@ -629,6 +629,54 @@ async function runTests() {
     assert(false, '33. Granular RBAC CRUD vs CRU', err.message);
   }
 
+  // 34. User Profile Details & Self-Password Security (/auth/profile & /auth/change-password)
+  try {
+    const loginRes = await request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: 'livi', password: 'Password123!' })
+    });
+    const token = loginRes.data?.data?.token;
+
+    // 1. Update profile details (pangkat, jabatan, phone_number)
+    const updateRes = await request('/auth/profile', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        pangkat: 'AKP',
+        jabatan: 'Administrator CRU & Verifikator Data SIPINTAR',
+        phone_number: '081288882026'
+      })
+    });
+
+    // 2. Change password rejection with invalid current password
+    const badPwRes = await request('/auth/change-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        current_password: 'SalahPassword999!',
+        new_password: 'PasswordBaru123!'
+      })
+    });
+
+    assert(
+      updateRes.status === 200 &&
+      updateRes.data?.data?.pangkat === 'AKP' &&
+      updateRes.data?.data?.jabatan === 'Administrator CRU & Verifikator Data SIPINTAR' &&
+      badPwRes.status === 400 &&
+      badPwRes.data?.error?.code === 'INVALID_PASSWORD',
+      '34. User Profile Details & Self-Password Security (/auth/profile & /auth/change-password)'
+    );
+  } catch (err) {
+    assert(false, '34. User Profile Details & Password Security', err.message);
+  }
+
   console.log(`\n------------------------------------------------------------`);
   console.log(`  Test Summary: \x1b[32m${passed} Passed\x1b[0m, \x1b[31m${failed} Failed\x1b[0m out of ${passed + failed} Tests`);
   console.log(`------------------------------------------------------------\n`);

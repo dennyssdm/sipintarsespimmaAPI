@@ -84,6 +84,8 @@ export async function loginUser(identifier, password, meta = {}) {
     nrp_nip: user.nrp_nip,
     nama_lengkap: user.nama_lengkap,
     email: user.email,
+    pangkat: user.pangkat || null,
+    jabatan: user.jabatan || null,
     role_id: user.role_id,
     role: user.role_code,
     role_name: displayRoleName,
@@ -100,6 +102,8 @@ export async function loginUser(identifier, password, meta = {}) {
     nrp_nip: user.nrp_nip,
     nama_lengkap: user.nama_lengkap,
     email: user.email,
+    pangkat: user.pangkat || null,
+    jabatan: user.jabatan || null,
     role: user.role_code,
     role_name: displayRoleName,
     can_delete,
@@ -123,7 +127,7 @@ export async function loginUser(identifier, password, meta = {}) {
  */
 export async function getCurrentUserProfile(userId) {
   const [users] = await pool.query(
-    `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.phone_number, 
+    `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.phone_number, u.pangkat, u.jabatan,
             u.avatar_url, u.can_delete, u.is_active, u.last_login_at, u.created_at, u.updated_at,
             r.role_code, r.role_name, r.description AS role_description
      FROM users u
@@ -192,6 +196,8 @@ export async function getCurrentUserProfile(userId) {
     nrp_nip: user.nrp_nip,
     nama_lengkap: user.nama_lengkap,
     email: user.email,
+    pangkat: user.pangkat || (profileDetails?.pangkat || null),
+    jabatan: user.jabatan || (profileDetails?.jabatan || null),
     phone_number: user.phone_number,
     avatar_url: user.avatar_url,
     role: user.role_code,
@@ -204,6 +210,131 @@ export async function getCurrentUserProfile(userId) {
     created_at: user.created_at,
     profile: profileDetails
   };
+}
+
+/**
+ * Update authenticated user's profile details
+ * @param {number} userId
+ * @param {object} data
+ * @param {object} meta
+ */
+export async function updateUserProfile(userId, data, meta = {}) {
+  const { nama_lengkap, phone_number, email, avatar_url, pangkat, jabatan } = data;
+
+  // Build dynamic update
+  const updates = [];
+  const params = [];
+
+  if (nama_lengkap !== undefined) {
+    updates.push('nama_lengkap = ?');
+    params.push(nama_lengkap.trim());
+  }
+  if (phone_number !== undefined) {
+    updates.push('phone_number = ?');
+    params.push(phone_number ? phone_number.trim() : null);
+  }
+  if (email !== undefined) {
+    updates.push('email = ?');
+    params.push(email.trim());
+  }
+  if (avatar_url !== undefined) {
+    updates.push('avatar_url = ?');
+    params.push(avatar_url);
+  }
+  if (pangkat !== undefined) {
+    updates.push('pangkat = ?');
+    params.push(pangkat ? pangkat.trim() : null);
+  }
+  if (jabatan !== undefined) {
+    updates.push('jabatan = ?');
+    params.push(jabatan ? jabatan.trim() : null);
+  }
+
+  if (updates.length > 0) {
+    params.push(userId);
+    await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+
+    // If gadik or serdik, optionally sync to profile tables
+    if (pangkat !== undefined || jabatan !== undefined) {
+      if (pangkat) {
+        await pool.query('UPDATE user_profiles_serdik SET pangkat = ? WHERE user_id = ?', [pangkat.trim(), userId]);
+      }
+      if (pangkat || jabatan) {
+        await pool.query(
+          'UPDATE user_profiles_gadik SET pangkat = COALESCE(?, pangkat), jabatan = COALESCE(?, jabatan) WHERE user_id = ?',
+          [pangkat ? pangkat.trim() : null, jabatan ? jabatan.trim() : null, userId]
+        );
+      }
+    }
+
+    await logActivity({
+      userId,
+      actionType: 'UPDATE_PROFILE',
+      entityType: 'users',
+      entityId: userId,
+      description: 'Pengguna memperbarui data profil akun',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent
+    });
+  }
+
+  return await getCurrentUserProfile(userId);
+}
+
+/**
+ * Change authenticated user's password
+ * @param {number} userId
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @param {object} meta
+ */
+export async function changeUserPassword(userId, currentPassword, newPassword, meta = {}) {
+  if (!currentPassword || !newPassword) {
+    const error = new Error('Kata sandi saat ini dan kata sandi baru wajib diisi');
+    error.statusCode = 400;
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  if (newPassword.length < 8) {
+    const error = new Error('Kata sandi baru minimal 8 karakter');
+    error.statusCode = 400;
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  const [users] = await pool.query('SELECT id, nama_lengkap, role_id, password_hash FROM users WHERE id = ?', [userId]);
+  if (users.length === 0) {
+    const error = new Error('Pengguna tidak ditemukan');
+    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  const user = users[0];
+  const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!isMatch) {
+    const error = new Error('Kata sandi saat ini yang Anda masukkan salah');
+    error.statusCode = 400;
+    error.code = 'INVALID_PASSWORD';
+    throw error;
+  }
+
+  const newHash = await bcrypt.hash(newPassword, 10);
+  await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, userId]);
+
+  await logActivity({
+    userId,
+    userName: user.nama_lengkap,
+    actionType: 'CHANGE_PASSWORD',
+    entityType: 'users',
+    entityId: userId,
+    description: 'Pengguna berhasil mengubah kata sandi akun',
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent
+  });
+
+  return { success: true, message: 'Kata sandi berhasil diperbarui' };
 }
 
 /**

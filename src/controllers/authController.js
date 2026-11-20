@@ -39,6 +39,47 @@ export async function getMe(req, res, next) {
 }
 
 /**
+ * Controller for updating current authenticated user profile
+ * PUT /api/v1/auth/profile
+ */
+export async function updateProfile(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const meta = {
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      userAgent: req.headers['user-agent']
+    };
+
+    const updated = await authService.updateUserProfile(userId, req.body, meta);
+
+    return sendSuccess(res, 'Profil pengguna berhasil diperbarui', updated, null, 200);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Controller for changing authenticated user's password
+ * POST /api/v1/auth/change-password
+ */
+export async function changePassword(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { current_password, new_password } = req.body;
+    const meta = {
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      userAgent: req.headers['user-agent']
+    };
+
+    const result = await authService.changeUserPassword(userId, current_password, new_password, meta);
+
+    return sendSuccess(res, 'Kata sandi berhasil diperbarui', result, null, 200);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Controller for self-registration of Serdik or Gadik
  * POST /api/v1/auth/register
  */

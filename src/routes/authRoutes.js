@@ -13,6 +13,8 @@ router.post('/register', authLimiter, authController.register);
 
 // Protected routes
 router.get('/me', authenticateToken, authController.getMe);
+router.put('/profile', authenticateToken, authController.updateProfile);
+router.post('/change-password', authenticateToken, authController.changePassword);
 
 // Verification route for RBAC testing
 router.get('/admin-check', authenticateToken, authorizeRoles('admin'), (req, res) => {
