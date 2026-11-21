@@ -16,6 +16,7 @@ import gadikRoutes from './src/routes/gadikRoutes.js';
 import libraryRoutes from './src/routes/libraryRoutes.js';
 import searchRoutes from './src/routes/searchRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
+import settingsRoutes from './src/routes/settingsRoutes.js';
 import { notFoundHandler, globalErrorHandler } from './src/middleware/errorHandler.js';
 
 dotenv.config();
@@ -73,6 +74,7 @@ app.use('/api/v1/gadik', gadikRoutes);
 app.use('/api/v1/library', libraryRoutes);
 app.use('/api/v1/search', searchRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/settings', settingsRoutes);
 
 // OpenAPI Specification Endpoint
 app.get(['/openapi.json', '/api/v1/openapi.json'], (req, res) => {

@@ -278,3 +278,29 @@ export async function importData(req, res, next) {
   }
 }
 
+/**
+ * GET /api/v1/settings/infographic or /api/v1/admin/settings/infographic
+ */
+export async function getInfographic(req, res, next) {
+  try {
+    const result = await adminService.getInfographicSetting();
+    return sendSuccess(res, 'Pengaturan infografis arsitektur sistem berhasil diambil', result, null, 200);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/v1/admin/settings/infographic
+ * Update infographic (Admin CRUD only)
+ */
+export async function updateInfographic(req, res, next) {
+  try {
+    const meta = getRequestMeta(req);
+    const result = await adminService.updateInfographicSetting(req.body, req.file, req.user, meta);
+    return sendSuccess(res, 'Gambar dan konfigurasi infografis arsitektur sistem berhasil diperbarui', result, null, 200);
+  } catch (error) {
+    next(error);
+  }
+}
+

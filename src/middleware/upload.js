@@ -73,5 +73,54 @@ export const upload = multer({
 
 export const uploadSingleFile = upload.single('file');
 
+// Image file storage & filter for infographics and banners
+const imageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const uniqueId = crypto.randomUUID();
+    const timestamp = Date.now();
+    const safeFilename = `infografis_${timestamp}_${uniqueId}${ext}`;
+    cb(null, safeFilename);
+  }
+});
+
+const imageFileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'];
+  if (!allowed.includes(ext) && !file.mimetype.startsWith('image/')) {
+    const error = new Error(`Format berkas gambar tidak diizinkan (${ext}). Format yang didukung: ${allowed.join(', ')}`);
+    error.statusCode = 400;
+    error.code = 'INVALID_IMAGE_TYPE';
+    return cb(error, false);
+  }
+  cb(null, true);
+};
+
+export const uploadInfographicImage = (req, res, next) => {
+  const uploadHandler = multer({
+    storage: imageStorage,
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 25 * 1024 * 1024 } // 25 MB max
+  }).fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'file', maxCount: 1 }
+  ]);
+
+  uploadHandler(req, res, (err) => {
+    if (err) return next(err);
+    if (req.files) {
+      if (req.files.image && req.files.image.length > 0) {
+        req.file = req.files.image[0];
+      } else if (req.files.file && req.files.file.length > 0) {
+        req.file = req.files.file[0];
+      }
+    }
+    next();
+  });
+};
+
 export default upload;
 

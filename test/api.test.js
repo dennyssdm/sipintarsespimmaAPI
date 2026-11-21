@@ -677,6 +677,57 @@ async function runTests() {
     assert(false, '34. User Profile Details & Password Security', err.message);
   }
 
+  // 35. Infographic Settings Management & RBAC Guard
+  try {
+    // 35.1 Public GET infographic setting
+    const publicRes = await request('/settings/infographic');
+
+    // 35.2 Rejection of Admin CRU (livi)
+    const liviLogin = await request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: 'livi', password: 'Password123!' })
+    });
+    const liviToken = liviLogin.data?.data?.token;
+
+    const cruRes = await request('/admin/settings/infographic', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${liviToken}`
+      },
+      body: JSON.stringify({ title: 'Gagal oleh livi' })
+    });
+
+    // 35.3 Superadmin CRUD (dennyboy) authorization
+    const dennyLogin = await request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: 'dennyboy', password: 'Password123!' })
+    });
+    const dennyToken = dennyLogin.data?.data?.token;
+
+    const crudRes = await request('/admin/settings/infographic', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${dennyToken}`
+      },
+      body: JSON.stringify({ title: 'INFOGRAFIS ARSITEKTUR SUMBER BELAJAR TERPADU' })
+    });
+
+    assert(
+      publicRes.status === 200 &&
+      Boolean(publicRes.data?.data?.image_url) &&
+      cruRes.status === 403 &&
+      crudRes.status === 200 &&
+      crudRes.data?.data?.title === 'INFOGRAFIS ARSITEKTUR SUMBER BELAJAR TERPADU',
+      '35. Infographic Settings Management & RBAC Guard (/settings/infographic & /admin/settings/infographic)'
+    );
+  } catch (err) {
+    assert(false, '35. Infographic Settings Management & RBAC Guard', err.message);
+  }
+
   console.log(`\n------------------------------------------------------------`);
   console.log(`  Test Summary: \x1b[32m${passed} Passed\x1b[0m, \x1b[31m${failed} Failed\x1b[0m out of ${passed + failed} Tests`);
   console.log(`------------------------------------------------------------\n`);

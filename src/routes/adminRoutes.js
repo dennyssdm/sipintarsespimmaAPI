@@ -2,7 +2,7 @@ import express from 'express';
 import * as adminController from '../controllers/adminController.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { authorizeRoles, authorizeDeleteAction } from '../middleware/rbac.js';
-import { uploadSingleFile } from '../middleware/upload.js';
+import { uploadSingleFile, uploadInfographicImage } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -127,6 +127,28 @@ router.post(
   '/import/:entity',
   authorizeRoles('admin', 'pengelola'),
   adminController.importData
+);
+
+// 6. Infographic System Settings (Admin CRUD only)
+router.get(
+  '/settings/infographic',
+  adminController.getInfographic
+);
+
+router.put(
+  '/settings/infographic',
+  authorizeRoles('admin'),
+  authorizeDeleteAction,
+  uploadInfographicImage,
+  adminController.updateInfographic
+);
+
+router.post(
+  '/settings/infographic',
+  authorizeRoles('admin'),
+  authorizeDeleteAction,
+  uploadInfographicImage,
+  adminController.updateInfographic
 );
 
 export default router;

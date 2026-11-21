@@ -1,7 +1,12 @@
 import crypto from 'crypto';
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import pool from '../config/db.js';
 import { logActivity } from '../utils/logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Format bytes to readable string (e.g. 2.4 MB)
@@ -1577,4 +1582,150 @@ export async function importUsers(items, user, meta = {}) {
   });
 
   return { imported_count: importedCount, skipped_count: skippedCount, total_received: items.length, errors };
+}
+
+/**
+ * 11. Get Infographic Setting (System Branding)
+ */
+export async function getInfographicSetting() {
+  const [rows] = await pool.query(
+    `SELECT s.setting_key, s.setting_value, s.updated_at, s.updated_by, u.nama_lengkap AS updated_by_name
+     FROM system_settings s
+     LEFT JOIN users u ON s.updated_by = u.id
+     WHERE s.setting_key IN ('infographic_image_url', 'infographic_full_url', 'infographic_title', 'infographic_caption')`
+  );
+
+  const map = {};
+  let lastUpdatedAt = null;
+  let lastUpdatedByName = null;
+
+  for (const row of rows) {
+    map[row.setting_key] = row.setting_value;
+    if (row.updated_at && (!lastUpdatedAt || new Date(row.updated_at) > new Date(lastUpdatedAt))) {
+      lastUpdatedAt = row.updated_at;
+      lastUpdatedByName = row.updated_by_name;
+    }
+  }
+
+  return {
+    image_url: map['infographic_image_url'] || '/infografis-sipintar.jpg',
+    image_full_url: map['infographic_full_url'] || '/infografis-sipintar.png',
+    title: map['infographic_title'] || 'INFOGRAFIS ARSITEKTUR SUMBER BELAJAR TERPADU',
+    caption: map['infographic_caption'] || 'Visualisasi komprehensif arsitektur ekosistem sumber belajar terpadu Sespimma Lemdiklat Polri: Gadik & Kompetensi, Modul & Hanjar 720 JP, Perpustakaan, Kurikulum, dan SOP Layanan Presisi.',
+    updated_at: lastUpdatedAt,
+    updated_by_name: lastUpdatedByName
+  };
+}
+
+/**
+ * 12. Update Infographic Setting (Admin CRUD Only)
+ */
+export async function updateInfographicSetting(data = {}, file = null, user = {}, meta = {}) {
+  const { action, image_url, title, caption, image_data } = data;
+
+  let newImageUrl = null;
+  let newFullUrl = null;
+
+  if (action === 'reset') {
+    newImageUrl = '/infografis-sipintar.jpg';
+    newFullUrl = '/infografis-sipintar.png';
+
+    await pool.query(
+      `UPDATE system_settings 
+       SET setting_value = CASE 
+         WHEN setting_key = 'infographic_image_url' THEN '/infografis-sipintar.jpg'
+         WHEN setting_key = 'infographic_full_url' THEN '/infografis-sipintar.png'
+         WHEN setting_key = 'infographic_title' THEN 'INFOGRAFIS ARSITEKTUR SUMBER BELAJAR TERPADU'
+         WHEN setting_key = 'infographic_caption' THEN 'Visualisasi komprehensif arsitektur ekosistem sumber belajar terpadu Sespimma Lemdiklat Polri: Gadik & Kompetensi, Modul & Hanjar 720 JP, Perpustakaan, Kurikulum, dan SOP Layanan Presisi.'
+         ELSE setting_value
+       END,
+       updated_by = ?,
+       updated_at = NOW()
+       WHERE setting_key IN ('infographic_image_url', 'infographic_full_url', 'infographic_title', 'infographic_caption')`,
+      [user.id || null]
+    );
+
+    await logActivity({
+      userId: user.id || null,
+      userName: user.nama_lengkap || 'Administrator',
+      role: user.role_code || 'admin',
+      actionType: 'RESET_INFOGRAPHIC',
+      entityType: 'system_settings',
+      entityId: 1,
+      description: `Administrator ${user.nama_lengkap || 'CRUD'} mereset gambar Infografis Arsitektur ke bawaan institusional Sespimma`,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent
+    });
+
+    return await getInfographicSetting();
+  }
+
+  // Handle uploaded file via Multer
+  if (file) {
+    newImageUrl = `/uploads/${file.filename}`;
+    newFullUrl = `/uploads/${file.filename}`;
+  } else if (image_data && typeof image_data === 'string' && image_data.startsWith('data:image')) {
+    // Handle Base64 Data URL: write to uploads folder
+    const matches = image_data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (matches && matches.length === 3) {
+      const mime = matches[1];
+      const buffer = Buffer.from(matches[2], 'base64');
+      const ext = mime.includes('png') ? '.png' : mime.includes('webp') ? '.webp' : '.jpg';
+      const filename = `infografis_base64_${Date.now()}_${crypto.randomUUID()}${ext}`;
+      const filePath = path.resolve(__dirname, '../../uploads', filename);
+      fs.writeFileSync(filePath, buffer);
+      newImageUrl = `/uploads/${filename}`;
+      newFullUrl = `/uploads/${filename}`;
+    }
+  } else if (image_url && typeof image_url === 'string' && image_url.trim()) {
+    newImageUrl = image_url.trim();
+    newFullUrl = image_url.trim();
+  }
+
+  if (newImageUrl) {
+    await pool.query(
+      `INSERT INTO system_settings (setting_key, setting_value, setting_group, description, updated_by)
+       VALUES ('infographic_image_url', ?, 'branding', 'URL Gambar Infografis Utama Arsitektur Sumber Belajar', ?)
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()`,
+      [newImageUrl, user.id || null]
+    );
+    await pool.query(
+      `INSERT INTO system_settings (setting_key, setting_value, setting_group, description, updated_by)
+       VALUES ('infographic_full_url', ?, 'branding', 'URL Gambar Infografis Resolusi Penuh untuk Lightbox', ?)
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()`,
+      [newFullUrl, user.id || null]
+    );
+  }
+
+  if (title && typeof title === 'string') {
+    await pool.query(
+      `INSERT INTO system_settings (setting_key, setting_value, setting_group, description, updated_by)
+       VALUES ('infographic_title', ?, 'branding', 'Judul Header Infografis Halaman Masuk', ?)
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()`,
+      [title.trim(), user.id || null]
+    );
+  }
+
+  if (caption && typeof caption === 'string') {
+    await pool.query(
+      `INSERT INTO system_settings (setting_key, setting_value, setting_group, description, updated_by)
+       VALUES ('infographic_caption', ?, 'branding', 'Keterangan Caption Infografis', ?)
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()`,
+      [caption.trim(), user.id || null]
+    );
+  }
+
+  await logActivity({
+    userId: user.id || null,
+    userName: user.nama_lengkap || 'Administrator',
+    role: user.role_code || 'admin',
+    actionType: 'UPDATE_INFOGRAPHIC',
+    entityType: 'system_settings',
+    entityId: 1,
+    description: `Administrator ${user.nama_lengkap || 'CRUD'} memperbarui gambar/metadata Infografis Arsitektur Sumber Belajar Terpadu`,
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent
+  });
+
+  return await getInfographicSetting();
 }
