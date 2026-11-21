@@ -10,3 +10,4 @@ const router = express.Router();
 router.get('/infographic', adminController.getInfographic);
 
 export default router;
+
