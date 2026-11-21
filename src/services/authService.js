@@ -85,6 +85,7 @@ export async function loginUser(identifier, password, meta = {}) {
     nama_lengkap: user.nama_lengkap,
     email: user.email,
     pangkat: user.pangkat || null,
+    golongan: user.golongan || null,
     pangkat_golongan: user.pangkat_golongan || user.pangkat || null,
     jabatan: user.jabatan || null,
     role_id: user.role_id,
@@ -104,6 +105,7 @@ export async function loginUser(identifier, password, meta = {}) {
     nama_lengkap: user.nama_lengkap,
     email: user.email,
     pangkat: user.pangkat || null,
+    golongan: user.golongan || null,
     pangkat_golongan: user.pangkat_golongan || user.pangkat || null,
     jabatan: user.jabatan || null,
     pendidikan_umum_terakhir: user.pendidikan_umum_terakhir || null,
@@ -136,7 +138,7 @@ export async function loginUser(identifier, password, meta = {}) {
 export async function getCurrentUserProfile(userId) {
   const [users] = await pool.query(
     `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.phone_number, 
-            u.pangkat, u.pangkat_golongan, u.jabatan, u.pendidikan_umum_terakhir, 
+            u.pangkat, u.golongan, u.pangkat_golongan, u.jabatan, u.pendidikan_umum_terakhir, 
             u.pendidikan_kedinasan, u.sertifikasi, u.kompetensi_utama, u.kompetensi, u.kompetensi_pendukung,
             u.avatar_url, u.can_delete, u.is_active, u.last_login_at, u.created_at, u.updated_at,
             r.role_code, r.role_name, r.description AS role_description
@@ -207,6 +209,7 @@ export async function getCurrentUserProfile(userId) {
     nama_lengkap: user.nama_lengkap,
     email: user.email,
     pangkat: user.pangkat || (profileDetails?.pangkat || null),
+    golongan: user.golongan || (profileDetails?.golongan || null),
     pangkat_golongan: user.pangkat_golongan || user.pangkat || (profileDetails?.pangkat ? `${profileDetails.pangkat}${profileDetails.golongan ? ' / ' + profileDetails.golongan : ''}` : null),
     jabatan: user.jabatan || (profileDetails?.jabatan || null),
     pendidikan_umum_terakhir: user.pendidikan_umum_terakhir || null,
@@ -242,6 +245,7 @@ export async function updateUserProfile(userId, data, meta = {}) {
     email, 
     avatar_url, 
     pangkat, 
+    golongan,
     pangkat_golongan, 
     jabatan,
     pendidikan_umum_terakhir,
@@ -276,9 +280,20 @@ export async function updateUserProfile(userId, data, meta = {}) {
     updates.push('pangkat = ?');
     params.push(pangkat ? pangkat.trim() : null);
   }
+  if (golongan !== undefined) {
+    updates.push('golongan = ?');
+    params.push(golongan ? golongan.trim() : null);
+  }
   if (pangkat_golongan !== undefined) {
     updates.push('pangkat_golongan = ?');
     params.push(pangkat_golongan ? pangkat_golongan.trim() : null);
+  } else if (pangkat !== undefined || golongan !== undefined) {
+    // Automatically synthesize pangkat_golongan if not explicitly provided
+    const combined = [pangkat ? pangkat.trim() : '', golongan ? golongan.trim() : ''].filter(Boolean).join(' / ');
+    if (combined) {
+      updates.push('pangkat_golongan = ?');
+      params.push(combined);
+    }
   }
   if (jabatan !== undefined) {
     updates.push('jabatan = ?');
@@ -314,14 +329,14 @@ export async function updateUserProfile(userId, data, meta = {}) {
     await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
 
     // If gadik or serdik, optionally sync to profile tables
-    if (pangkat !== undefined || jabatan !== undefined) {
+    if (pangkat !== undefined || jabatan !== undefined || golongan !== undefined) {
       if (pangkat) {
         await pool.query('UPDATE user_profiles_serdik SET pangkat = ? WHERE user_id = ?', [pangkat.trim(), userId]);
       }
-      if (pangkat || jabatan) {
+      if (pangkat || jabatan || golongan) {
         await pool.query(
-          'UPDATE user_profiles_gadik SET pangkat = COALESCE(?, pangkat), jabatan = COALESCE(?, jabatan) WHERE user_id = ?',
-          [pangkat ? pangkat.trim() : null, jabatan ? jabatan.trim() : null, userId]
+          'UPDATE user_profiles_gadik SET pangkat = COALESCE(?, pangkat), jabatan = COALESCE(?, jabatan), golongan = COALESCE(?, golongan) WHERE user_id = ?',
+          [pangkat ? pangkat.trim() : null, jabatan ? jabatan.trim() : null, golongan ? golongan.trim() : null, userId]
         );
       }
     }
