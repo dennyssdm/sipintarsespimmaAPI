@@ -85,6 +85,7 @@ export async function loginUser(identifier, password, meta = {}) {
     nama_lengkap: user.nama_lengkap,
     email: user.email,
     pangkat: user.pangkat || null,
+    pangkat_golongan: user.pangkat_golongan || user.pangkat || null,
     jabatan: user.jabatan || null,
     role_id: user.role_id,
     role: user.role_code,
@@ -103,7 +104,14 @@ export async function loginUser(identifier, password, meta = {}) {
     nama_lengkap: user.nama_lengkap,
     email: user.email,
     pangkat: user.pangkat || null,
+    pangkat_golongan: user.pangkat_golongan || user.pangkat || null,
     jabatan: user.jabatan || null,
+    pendidikan_umum_terakhir: user.pendidikan_umum_terakhir || null,
+    pendidikan_kedinasan: user.pendidikan_kedinasan || null,
+    sertifikasi: user.sertifikasi || null,
+    kompetensi_utama: user.kompetensi_utama || null,
+    kompetensi: user.kompetensi || null,
+    kompetensi_pendukung: user.kompetensi_pendukung || null,
     role: user.role_code,
     role_name: displayRoleName,
     can_delete,
@@ -127,7 +135,9 @@ export async function loginUser(identifier, password, meta = {}) {
  */
 export async function getCurrentUserProfile(userId) {
   const [users] = await pool.query(
-    `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.phone_number, u.pangkat, u.jabatan,
+    `SELECT u.id, u.uuid, u.nrp_nip, u.nama_lengkap, u.email, u.phone_number, 
+            u.pangkat, u.pangkat_golongan, u.jabatan, u.pendidikan_umum_terakhir, 
+            u.pendidikan_kedinasan, u.sertifikasi, u.kompetensi_utama, u.kompetensi, u.kompetensi_pendukung,
             u.avatar_url, u.can_delete, u.is_active, u.last_login_at, u.created_at, u.updated_at,
             r.role_code, r.role_name, r.description AS role_description
      FROM users u
@@ -197,7 +207,14 @@ export async function getCurrentUserProfile(userId) {
     nama_lengkap: user.nama_lengkap,
     email: user.email,
     pangkat: user.pangkat || (profileDetails?.pangkat || null),
+    pangkat_golongan: user.pangkat_golongan || user.pangkat || (profileDetails?.pangkat ? `${profileDetails.pangkat}${profileDetails.golongan ? ' / ' + profileDetails.golongan : ''}` : null),
     jabatan: user.jabatan || (profileDetails?.jabatan || null),
+    pendidikan_umum_terakhir: user.pendidikan_umum_terakhir || null,
+    pendidikan_kedinasan: user.pendidikan_kedinasan || null,
+    sertifikasi: user.sertifikasi || null,
+    kompetensi_utama: user.kompetensi_utama || null,
+    kompetensi: user.kompetensi || null,
+    kompetensi_pendukung: user.kompetensi_pendukung || null,
     phone_number: user.phone_number,
     avatar_url: user.avatar_url,
     role: user.role_code,
@@ -219,7 +236,21 @@ export async function getCurrentUserProfile(userId) {
  * @param {object} meta
  */
 export async function updateUserProfile(userId, data, meta = {}) {
-  const { nama_lengkap, phone_number, email, avatar_url, pangkat, jabatan } = data;
+  const { 
+    nama_lengkap, 
+    phone_number, 
+    email, 
+    avatar_url, 
+    pangkat, 
+    pangkat_golongan, 
+    jabatan,
+    pendidikan_umum_terakhir,
+    pendidikan_kedinasan,
+    sertifikasi,
+    kompetensi_utama,
+    kompetensi,
+    kompetensi_pendukung
+  } = data;
 
   // Build dynamic update
   const updates = [];
@@ -227,7 +258,7 @@ export async function updateUserProfile(userId, data, meta = {}) {
 
   if (nama_lengkap !== undefined) {
     updates.push('nama_lengkap = ?');
-    params.push(nama_lengkap.trim());
+    params.push(nama_lengkap ? nama_lengkap.trim() : null);
   }
   if (phone_number !== undefined) {
     updates.push('phone_number = ?');
@@ -235,7 +266,7 @@ export async function updateUserProfile(userId, data, meta = {}) {
   }
   if (email !== undefined) {
     updates.push('email = ?');
-    params.push(email.trim());
+    params.push(email ? email.trim() : null);
   }
   if (avatar_url !== undefined) {
     updates.push('avatar_url = ?');
@@ -245,9 +276,37 @@ export async function updateUserProfile(userId, data, meta = {}) {
     updates.push('pangkat = ?');
     params.push(pangkat ? pangkat.trim() : null);
   }
+  if (pangkat_golongan !== undefined) {
+    updates.push('pangkat_golongan = ?');
+    params.push(pangkat_golongan ? pangkat_golongan.trim() : null);
+  }
   if (jabatan !== undefined) {
     updates.push('jabatan = ?');
     params.push(jabatan ? jabatan.trim() : null);
+  }
+  if (pendidikan_umum_terakhir !== undefined) {
+    updates.push('pendidikan_umum_terakhir = ?');
+    params.push(pendidikan_umum_terakhir ? pendidikan_umum_terakhir.trim() : null);
+  }
+  if (pendidikan_kedinasan !== undefined) {
+    updates.push('pendidikan_kedinasan = ?');
+    params.push(pendidikan_kedinasan ? pendidikan_kedinasan.trim() : null);
+  }
+  if (sertifikasi !== undefined) {
+    updates.push('sertifikasi = ?');
+    params.push(sertifikasi ? sertifikasi.trim() : null);
+  }
+  if (kompetensi_utama !== undefined) {
+    updates.push('kompetensi_utama = ?');
+    params.push(kompetensi_utama ? kompetensi_utama.trim() : null);
+  }
+  if (kompetensi !== undefined) {
+    updates.push('kompetensi = ?');
+    params.push(kompetensi ? kompetensi.trim() : null);
+  }
+  if (kompetensi_pendukung !== undefined) {
+    updates.push('kompetensi_pendukung = ?');
+    params.push(kompetensi_pendukung ? kompetensi_pendukung.trim() : null);
   }
 
   if (updates.length > 0) {
@@ -272,7 +331,7 @@ export async function updateUserProfile(userId, data, meta = {}) {
       actionType: 'UPDATE_PROFILE',
       entityType: 'users',
       entityId: userId,
-      description: 'Pengguna memperbarui data profil akun',
+      description: 'Pengguna memperbarui data profil akun & kompetensi',
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent
     });
